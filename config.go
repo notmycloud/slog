@@ -22,19 +22,19 @@ const (
 	FormatJSON OutputFormat = "JSON"
 
 	// LevelTrace defines the Trace Log Level (-8)
-	LevelTrace = -8
+	LevelTrace = slog.LevelDebug - 4
 	// LevelDebug defines the Debug Log Level (-4)
 	LevelDebug = slog.LevelDebug
 	// LevelInfo defines the Info Log Level (0)
 	LevelInfo = slog.LevelInfo
 	// LevelNotice defines the Notice Log Level (2)
-	LevelNotice = 2
+	LevelNotice = slog.LevelInfo + 2
 	// LevelWarn defines the Warn Log Level (4)
 	LevelWarn = slog.LevelWarn
 	// LevelError defines the Error Log Level (8)
 	LevelError = slog.LevelError
 	// LevelEmergency defines the Emergency Log Level (12)
-	LevelEmergency = 12
+	LevelEmergency = slog.LevelError + 4
 
 	// DefaultRotateSize is the default max log filesize in Megabytes.
 	DefaultRotateSize = 5
@@ -82,6 +82,8 @@ func (ll *LogLevel) DecodeLevel() (err error) {
 		}
 	}
 	switch strings.ToUpper(name) {
+	case "TRACE":
+		ll.level = LevelTrace
 	case "DEBUG":
 		ll.level = LevelDebug
 	case "INFO":
@@ -92,7 +94,7 @@ func (ll *LogLevel) DecodeLevel() (err error) {
 		ll.level = LevelWarn
 	case "ERROR":
 		ll.level = LevelError
-	case "EMERGENCY":
+	case "EMERG", "EMERGENCY":
 		ll.level = LevelEmergency
 	default:
 		return ErrInvalidLogLevel
@@ -196,8 +198,20 @@ func (of *OutputFormat) Handler(w io.Writer, opts *slog.HandlerOptions) slog.Han
 
 // Config is the root configuration for the logging library.
 type Config struct {
-	Console ConsoleOutput
-	File    FileOutput
+	Console  ConsoleOutput
+	File     FileOutput
+	Handlers []slog.Handler
+}
+
+// Validate will check for common errors in the configuration.
+func (c *Config) Validate() (err error) {
+	defer func() {
+		if err != nil {
+			err = fmt.Errorf("nmcslog: validate config [root]: %w", err)
+		}
+	}()
+	// TODO: Validate recursively
+	return nil
 }
 
 // OutputBase defines the common settings for an output type.
@@ -212,6 +226,24 @@ type OutputBase struct {
 	IncludeSource bool
 	// IncludeFullSource will include the directory for the source's filename.
 	IncludeFullSource bool
+}
+
+func (OutputBase) JSONSchemaExtend(schema *jsonschema.Schema) {
+	if schema == nil {
+		schema = &jsonschema.Schema{}
+	}
+
+	if schema.Properties == nil {
+		schema.Properties = jsonschema.NewProperties()
+	}
+
+	levelSchema, ok := schema.Properties.Get("Level")
+	if !ok {
+		levelSchema = &jsonschema.Schema{}
+		schema.Properties.Set("Level", levelSchema)
+	}
+
+	levelSchema.Pattern = "^(?i)(trace|debug|info|notice|warning|warn|error|emerg|emergency)([+-][1-9][0-9]*)?$|^(\\d+)$"
 }
 
 // ConsoleOutput defines the settings specific to the console base output.

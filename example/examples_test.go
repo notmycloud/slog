@@ -1,4 +1,4 @@
-package nmcslog_test
+package example
 
 import (
 	"encoding/json"

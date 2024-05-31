@@ -38,3 +38,8 @@ func SetDebugLogger(l *slog.Logger) *slog.Logger {
 	defaultLogger = l
 	return Logger()
 }
+
+// GetConfiguredLogger will return a logger that is configured according to the given configuration.
+func GetConfiguredLogger(logConfig *Config) {
+	logConfig.Validate()
+}

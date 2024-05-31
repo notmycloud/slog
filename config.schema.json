@@ -24,6 +24,7 @@
         },
         "Level": {
           "type": "string",
+          "pattern": "^(?i)(trace|debug|info|notice|warning|warn|error|emergency)([+-][1-9][0-9]*)?$|^(\\d+)$",
           "description": "Level to cutoff log messages, anything below this level will be dropped."
         },
         "Format": {
