@@ -13,31 +13,39 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "description": "Config is the root configuration for the logging library."
     },
     "ConsoleOutput": {
       "properties": {
         "Disable": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Disable this logging output."
         },
         "Level": {
-          "type": "string"
+          "type": "string",
+          "description": "Level to cutoff log messages, anything below this level will be dropped."
         },
         "Format": {
-          "type": "string"
+          "type": "string",
+          "description": "Format of the log output, currently FormatText (default) and FormatJSON are supported."
         },
         "IncludeSource": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "IncludeSource will include the source code position of the log statement."
         },
         "IncludeFullSource": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "IncludeFullSource will include the directory for the source's filename."
         },
         "StdOut": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "StdOut should only be enabled as a user preference, StdErr is designated for logging and non-interactive output."
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "description": "ConsoleOutput defines the settings specific to the console base output."
     },
     "FileOutput": {
       "if": {
@@ -70,23 +78,29 @@
       },
       "properties": {
         "Disable": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Disable this logging output."
         },
         "Level": {
-          "type": "string"
+          "type": "string",
+          "description": "Level to cutoff log messages, anything below this level will be dropped."
         },
         "Format": {
-          "type": "string"
+          "type": "string",
+          "description": "Format of the log output, currently FormatText (default) and FormatJSON are supported."
         },
         "IncludeSource": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "IncludeSource will include the source code position of the log statement."
         },
         "IncludeFullSource": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "IncludeFullSource will include the directory for the source's filename."
         },
         "Path": {
           "type": "string",
           "title": "Logging Path",
+          "description": "Path is the folder that logs should be written to. If not provided, file based logging will be disabled.",
           "default": "Current Directory",
           "examples": [
             "./logs"
@@ -97,23 +111,27 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "description": "FileOutput defines the settings specific to the file based output."
     },
     "Rotate": {
       "properties": {
         "Disable": {
           "type": "boolean",
           "title": "Disable Rotation",
+          "description": "Disable log rotation, enabled by default.",
           "default": false
         },
         "OnStart": {
           "type": "boolean",
           "title": "Rotate on Start",
+          "description": "OnStart will trigger a log rotation on each start of the application.",
           "default": false
         },
         "MaxSize": {
           "type": "integer",
           "title": "Max Filesize",
+          "description": "MaxSize (Megabytes) of a log file to trigger rotation.",
           "default": 5,
           "examples": [
             1
@@ -122,6 +140,7 @@
         "Keep": {
           "type": "integer",
           "title": "Keep Files",
+          "description": "Keep this many log files.",
           "default": 4,
           "examples": [
             3
@@ -130,6 +149,7 @@
         "MaxAge": {
           "type": "integer",
           "title": "Max File Age",
+          "description": "MaxAge (in days) for a log file to triggering rotation.",
           "default": 7,
           "examples": [
             5

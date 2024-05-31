@@ -4,11 +4,9 @@ import (
 	"encoding/json"
 	"log/slog"
 	"os"
-	"runtime/debug"
 
 	"github.com/invopop/jsonschema"
 	nmcslog "github.com/notmycloud/slog"
-	"golang.org/x/mod/module"
 )
 
 // Example function names
@@ -28,19 +26,19 @@ import (
 func Example_generateSchema() {
 	r := new(jsonschema.Reflector)
 	print("Adding Go Struct Comments.\n")
-	bInfo, ok := debug.ReadBuildInfo()
-	if !ok {
-		panic("Could not retrieve Build Info!")
-	}
-	// bInfo.Path should report the Go Module name such as github.com/ACCOUNT/REPOSITORY
-	if err := module.CheckPath(bInfo.Path); err != nil {
-		print("Invalid Module Path\n")
-		print(bInfo.Path)
-		print("\n")
-		panic(err)
-	}
-	print("Getting comments from: " + bInfo.Path)
-	if err := r.AddGoComments(bInfo.Path, "./"); err != nil {
+	// bInfo, ok := debug.ReadBuildInfo()
+	// if !ok {
+	// 	panic("Could not retrieve Build Info!")
+	// }
+	// // bInfo.Path should report the Go Module name such as github.com/ACCOUNT/REPOSITORY
+	// if err := module.CheckPath(bInfo.Path); err != nil {
+	// 	print("Invalid Module Path\n")
+	// 	print(bInfo.Path)
+	// 	print("\n")
+	// 	panic(err)
+	// }
+	// print("Getting comments from: " + bInfo.Path)
+	if err := r.AddGoComments("github.com/notmycloud/slog", "./"); err != nil {
 		panic(err)
 	}
 
