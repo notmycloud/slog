@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/notmycloud/slog/config",
+  "$ref": "#/$defs/Config",
+  "$defs": {
+    "Config": {
+      "properties": {
+        "Console": {
+          "$ref": "#/$defs/ConsoleOutput"
+        },
+        "File": {
+          "$ref": "#/$defs/FileOutput"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ConsoleOutput": {
+      "properties": {
+        "Disable": {
+          "type": "boolean"
+        },
+        "Level": {
+          "type": "string"
+        },
+        "Format": {
+          "type": "string"
+        },
+        "IncludeSource": {
+          "type": "boolean"
+        },
+        "IncludeFullSource": {
+          "type": "boolean"
+        },
+        "StdOut": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "FileOutput": {
+      "if": {
+        "properties": {
+          "Disable": {
+            "enum": [
+              false
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "Path"
+        ]
+      },
+      "else": {
+        "if": {
+          "not": {
+            "required": [
+              "Disable"
+            ]
+          },
+          "then": {
+            "required": [
+              "Path"
+            ]
+          }
+        }
+      },
+      "properties": {
+        "Disable": {
+          "type": "boolean"
+        },
+        "Level": {
+          "type": "string"
+        },
+        "Format": {
+          "type": "string"
+        },
+        "IncludeSource": {
+          "type": "boolean"
+        },
+        "IncludeFullSource": {
+          "type": "boolean"
+        },
+        "Path": {
+          "type": "string",
+          "title": "Logging Path",
+          "default": "Current Directory",
+          "examples": [
+            "./logs"
+          ]
+        },
+        "Rotate": {
+          "$ref": "#/$defs/Rotate"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Rotate": {
+      "properties": {
+        "Disable": {
+          "type": "boolean",
+          "title": "Disable Rotation",
+          "default": false
+        },
+        "OnStart": {
+          "type": "boolean",
+          "title": "Rotate on Start",
+          "default": false
+        },
+        "MaxSize": {
+          "type": "integer",
+          "title": "Max Filesize",
+          "default": 5,
+          "examples": [
+            1
+          ]
+        },
+        "Keep": {
+          "type": "integer",
+          "title": "Keep Files",
+          "default": 4,
+          "examples": [
+            3
+          ]
+        },
+        "MaxAge": {
+          "type": "integer",
+          "title": "Max File Age",
+          "default": 7,
+          "examples": [
+            5
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    }
+  }
+}

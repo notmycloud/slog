@@ -1,0 +1,13 @@
+Console:
+  Disable: false
+  Format: text
+  IncludeSource: true
+  IncludeFullSource: true
+  StdOut: false
+  Level: "NOTICE"
+File:
+  Disable: false
+  Format: json
+  IncludeSource: true
+  IncludeFullSource: true
+  Path: "/home/dir"
