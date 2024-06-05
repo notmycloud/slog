@@ -1,18 +1,16 @@
 package nmcslog
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/BurntSushi/toml"
-	"github.com/invopop/jsonschema"
-	"gopkg.in/yaml.v3"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
+
+	"github.com/invopop/jsonschema"
+	slogmulti "github.com/samber/slog-multi"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 const (
@@ -33,8 +31,8 @@ const (
 	LevelWarn = slog.LevelWarn
 	// LevelError defines the Error Log Level (8)
 	LevelError = slog.LevelError
-	// LevelEmergency defines the Emergency Log Level (12)
-	LevelEmergency = slog.LevelError + 4
+	// LevelFatal defines the Emergency Log Level (12)
+	LevelFatal = slog.LevelError + 4
 
 	// DefaultRotateSize is the default max log filesize in Megabytes.
 	DefaultRotateSize = 5
@@ -45,155 +43,17 @@ const (
 )
 
 var (
-	ErrInvalidLogLevel = errors.New("invalid log level")
+	ErrInvalidLogLevel  = errors.New("invalid log level")
+	ErrHandlerDisabled  = errors.New("handler disabled")
+	ErrRotatorDisabled  = errors.New("rotator disabled")
+	ErrNoHandersEnabled = errors.New("no handlers are enabled")
 )
 
-// LogLevel handles the decoding and parsing of a given log level to the slog log level.
-type LogLevel struct {
-	// Level to cutoff log messages, anything below this level will be dropped.
-	Level string
-	// Level is the converted Level from either an integer or string.
-	level slog.Level
-}
-
-func (ll *LogLevel) DecodeLevel() (err error) {
-	defer func() {
-		if err != nil {
-			err = fmt.Errorf("nmcslog: decode level string %q: %w", ll.Level, err)
-		}
-	}()
-
-	if ll.Level == "" {
-		ll.level = slog.LevelInfo
-		return nil
-	}
-	if l, err := strconv.ParseInt(ll.Level, 10, 64); err == nil {
-		ll.level = slog.Level(l)
-		return nil
-	}
-
-	name := ll.Level
-	offset := 0
-	if i := strings.IndexAny(ll.Level, "+-"); i >= 0 {
-		name = ll.Level[:i]
-		offset, err = strconv.Atoi(ll.Level[i:])
-		if err != nil {
-			return err
-		}
-	}
-	switch strings.ToUpper(name) {
-	case "TRACE":
-		ll.level = LevelTrace
-	case "DEBUG":
-		ll.level = LevelDebug
-	case "INFO":
-		ll.level = LevelInfo
-	case "NOTICE":
-		ll.level = LevelNotice
-	case "WARN", "WARNING":
-		ll.level = LevelWarn
-	case "ERROR":
-		ll.level = LevelError
-	case "EMERG", "EMERGENCY":
-		ll.level = LevelEmergency
-	default:
-		return ErrInvalidLogLevel
-	}
-
-	ll.level += slog.Level(offset)
-	ll.Level = strings.ToUpper(name)
-	return nil
-}
-
-// UnmarshalJSON will intercept a JSON string to be converted to OutputFormat.
-func (ll *LogLevel) UnmarshalJSON(data []byte) error {
-	var level string
-	if err := json.Unmarshal(data, &level); err != nil {
-		return fmt.Errorf("unmarshal OutputFormat from JSON: %w", err)
-	}
-	ll.Level = level
-
-	return ll.DecodeLevel()
-}
-
-// UnmarshalYAML will intercept a YAML string to be converted to OutputFormat.
-func (ll *LogLevel) UnmarshalYAML(data []byte) error {
-	var level string
-	if err := yaml.Unmarshal(data, &level); err != nil {
-		return fmt.Errorf("unmarshal OutputFormat from YAML: %w", err)
-	}
-	ll.Level = level
-
-	return ll.DecodeLevel()
-}
-
-// UnmarshalTOML will intercept a TOML string to be converted to OutputFormat.
-func (ll *LogLevel) UnmarshalTOML(data []byte) error {
-	var level string
-	if err := toml.Unmarshal(data, &level); err != nil {
-		return fmt.Errorf("unmarshal OutputFormat from TOML: %w", err)
-	}
-	ll.Level = level
-
-	return ll.DecodeLevel()
-}
-
-// OutputFormat is the log record output formatting.
-// Currently, JSON and TEXT are supported.
-type OutputFormat string
-
-// FromString will convert the given string to the matching OutputFormat.
-func (of *OutputFormat) FromString(format string) error {
-	switch strings.ToUpper(format) {
-	case string(FormatText):
-		*of = FormatText
-	case string(FormatJSON):
-		*of = FormatJSON
-	default:
-		return fmt.Errorf("invalid format: %s", format)
-	}
-
-	return nil
-}
-
-// UnmarshalJSON will intercept a JSON string to be converted to OutputFormat.
-func (of *OutputFormat) UnmarshalJSON(data []byte) error {
-	var format string
-	if err := json.Unmarshal(data, &format); err != nil {
-		return fmt.Errorf("unmarshal OutputFormat from JSON: %w", err)
-	}
-
-	return of.FromString(format)
-}
-
-// UnmarshalYAML will intercept a YAML string to be converted to OutputFormat.
-func (of *OutputFormat) UnmarshalYAML(data []byte) error {
-	var format string
-	if err := yaml.Unmarshal(data, &format); err != nil {
-		return fmt.Errorf("unmarshal OutputFormat from YAML: %w", err)
-	}
-
-	return of.FromString(format)
-}
-
-// UnmarshalTOML will intercept a TOML string to be converted to OutputFormat.
-func (of *OutputFormat) UnmarshalTOML(data []byte) error {
-	var format string
-	if err := toml.Unmarshal(data, &format); err != nil {
-		return fmt.Errorf("unmarshal OutputFormat from TOML: %w", err)
-	}
-
-	return of.FromString(format)
-}
-
-// Handler will return a slog.Handler that matches the configured output format (default=TEXT).
-func (of *OutputFormat) Handler(w io.Writer, opts *slog.HandlerOptions) slog.Handler {
-	if *of == FormatJSON {
-		return slog.NewJSONHandler(w, opts)
-	}
-
-	// Default to a TextHandler
-	return slog.NewTextHandler(w, opts)
+// CustomLevelNames will replace the SLOG Level output with the given names rather than the lower level + increment.
+var CustomLevelNames = map[slog.Leveler]string{
+	LevelTrace:  "TRACE",
+	LevelNotice: "NOTICE",
+	LevelFatal:  "FATAL",
 }
 
 // Config is the root configuration for the logging library.
@@ -210,56 +70,121 @@ func (c *Config) Validate() (err error) {
 			err = fmt.Errorf("nmcslog: validate config [root]: %w", err)
 		}
 	}()
-	// TODO: Validate recursively
+
+	if err = c.Console.Validate(); err != nil {
+		return err
+	}
+	if err = c.File.Validate(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
-// OutputBase defines the common settings for an output type.
-type OutputBase struct {
-	// Disable this logging output.
-	Disable bool
-	// LogLevel handles the configuration of the current Log Level.
-	LogLevel
-	// Format of the log output, currently FormatText (default) and FormatJSON are supported.
-	Format OutputFormat
-	// IncludeSource will include the source code position of the log statement.
-	IncludeSource bool
-	// IncludeFullSource will include the directory for the source's filename.
-	IncludeFullSource bool
-}
+func (c *Config) GetHandlers() (logger *slog.Logger, err error) {
+	defer func() {
+		if err != nil {
+			err = fmt.Errorf("nmcslog: creating logger [root]: %w", err)
+		}
+	}()
 
-func (OutputBase) JSONSchemaExtend(schema *jsonschema.Schema) {
-	if schema == nil {
-		schema = &jsonschema.Schema{}
+	logHandlers := c.Handlers
+	if !c.Console.Disable {
+		var handler slog.Handler
+		handler, err = c.Console.GetHandler()
+		if err != nil {
+			return nil, fmt.Errorf("getting console log handler: %w", err)
+		}
+		logHandlers = append(logHandlers, handler)
 	}
 
-	if schema.Properties == nil {
-		schema.Properties = jsonschema.NewProperties()
+	if !c.File.Disable {
+		var handler slog.Handler
+		handler, err = c.File.GetHandler()
+		if err != nil {
+			return nil, fmt.Errorf("getting file log handler: %w", err)
+		}
+		logHandlers = append(logHandlers, handler)
 	}
 
-	levelSchema, ok := schema.Properties.Get("Level")
-	if !ok {
-		levelSchema = &jsonschema.Schema{}
-		schema.Properties.Set("Level", levelSchema)
+	if len(logHandlers) == 0 {
+		return nil, ErrNoHandersEnabled
 	}
 
-	levelSchema.Pattern = "^(?i)(trace|debug|info|notice|warning|warn|error|emerg|emergency)([+-][1-9][0-9]*)?$|^(\\d+)$"
+	var logHandler slog.Handler
+
+	if len(logHandlers) == 1 {
+		logHandler = logHandlers[0]
+	} else {
+		logHandler = slogmulti.Fanout(logHandlers...)
+	}
+
+	return slog.New(logHandler), nil
 }
 
 // ConsoleOutput defines the settings specific to the console base output.
 type ConsoleOutput struct {
-	OutputBase
+	OutputHandler
 	// StdOut should only be enabled as a user preference, StdErr is designated for logging and non-interactive output.
 	StdOut bool
 }
 
+func (co *ConsoleOutput) Validate() (err error) {
+	defer func() {
+		if err != nil {
+			err = fmt.Errorf("nmcslog: validate config [console output]: %w", err)
+		}
+	}()
+
+	return co.OutputHandler.Validate()
+}
+
+func (co *ConsoleOutput) GetHandler() (handler slog.Handler, err error) {
+	defer func() {
+		if err != nil {
+			err = fmt.Errorf("nmcslog: get handler [console output]: %w", err)
+		}
+	}()
+
+	if co.Disable {
+		return nil, fmt.Errorf("[%s] %w", co.Format, ErrHandlerDisabled)
+	}
+
+	handler, err = co.OutputHandler.GetHandler(os.Stderr)
+	if err != nil {
+		return nil, fmt.Errorf("getting handler [console]: %w", err)
+	}
+
+	return handler, nil
+}
+
 // FileOutput defines the settings specific to the file based output.
 type FileOutput struct {
-	OutputBase
+	OutputHandler
 	// Path is the folder that logs should be written to. If not provided, file based logging will be disabled.
 	Path        string `json:",omitempty" jsonschema:"title=Logging Path,example=./logs,default=Current Directory"`
+	Filename    string
 	Rotate      Rotate
 	loggingFile string
+}
+
+func (fo *FileOutput) Validate() (err error) {
+	defer func() {
+		if err != nil {
+			err = fmt.Errorf("nmcslog: validate config [file output]: %w", err)
+		}
+	}()
+
+	if err = fo.OutputHandler.Validate(); err != nil {
+		return err
+	}
+	if err = validatePath(fo.GetPath()); err != nil {
+		return fmt.Errorf("invalid logging path [%s]: %w", fo.loggingFile, err)
+	}
+	if err = fo.Rotate.Validate(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // JSONSchemaExtend extends the JSON schema for the FileOutput type.
@@ -329,24 +254,54 @@ func (FileOutput) JSONSchemaExtend(schema *jsonschema.Schema) {
 	}
 }
 
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
-}
-
 func (fo *FileOutput) GetPath() string {
 	if fo.loggingFile != "" {
 		return fo.loggingFile
 	}
 
-	name := filepath.Base(os.Args[0])
-	fo.loggingFile = filepath.Join(fo.Path, name+".log")
+	if fo.Filename == "" {
+		fo.Filename = filepath.Base(os.Args[0])
+	}
+	fo.loggingFile = filepath.Join(fo.Path, fo.Filename+".log")
 
 	return fo.loggingFile
+}
+
+func (fo *FileOutput) GetHandler() (handler slog.Handler, err error) {
+	defer func() {
+		if err != nil {
+			err = fmt.Errorf("nmcslog: get handler [file output]: %w", err)
+		}
+	}()
+
+	if fo.Disable {
+		return nil, fmt.Errorf("[%s] %w", fo.Format, ErrHandlerDisabled)
+	}
+
+	var output io.Writer
+	if !fo.Rotate.Disable {
+		if output, err = fo.Rotate.GetWriter(fo.GetPath()); err != nil {
+			return nil, fmt.Errorf("getting log rotator: %w", err)
+		}
+	} else {
+		logFile, err := os.OpenFile(
+			fo.GetPath(),
+			os.O_APPEND|os.O_CREATE|os.O_WRONLY,
+			0o644, //nolint:gomnd
+		)
+		if err != nil {
+			return nil, fmt.Errorf("create/open log file [%s]: %w", fo.GetPath(), err)
+		}
+
+		output = logFile
+	}
+
+	handler, err = fo.OutputHandler.GetHandler(output)
+	if err != nil {
+		return nil, fmt.Errorf("getting handler [file]: %w", err)
+	}
+
+	return handler, nil
 }
 
 type Rotate struct {
@@ -360,4 +315,62 @@ type Rotate struct {
 	Keep int `json:",omitempty" jsonschema:"title=Keep Files,example=3,default=4"`
 	// MaxAge (in days) for a log file to triggering rotation.
 	MaxAge int `json:",omitempty" jsonschema:"title=Max File Age,example=5,default=7"`
+}
+
+func (r *Rotate) Validate() (err error) {
+	defer func() {
+		if err != nil {
+			err = fmt.Errorf("nmcslog: validate config [rotate]: %w", err)
+		}
+	}()
+	if r.Disable {
+		return nil
+	}
+
+	if r.MaxSize < 1 {
+		return fmt.Errorf("invalid MaxSize [%d]", r.MaxSize)
+	}
+	if r.Keep < 1 {
+		return fmt.Errorf("invalid Keep [%d]", r.Keep)
+	}
+	if r.MaxAge < 1 {
+		return fmt.Errorf("invalid MaxAge [%d]", r.MaxAge)
+	}
+	return nil
+}
+
+func (r *Rotate) GetWriter(path string) (w io.Writer, err error) {
+	defer func() {
+		if err != nil {
+			err = fmt.Errorf("nmcslog: get file rotator: %w", err)
+		}
+	}()
+
+	if r.Disable {
+		return nil, fmt.Errorf("log rotation disabled: %w", ErrRotatorDisabled)
+	}
+
+	rotator := &lumberjack.Logger{
+		Filename:   path,
+		MaxSize:    r.MaxSize, // megabytes
+		MaxBackups: r.Keep,
+		MaxAge:     r.MaxAge, // days
+	}
+
+	if r.OnStart {
+		if err := rotator.Rotate(); err != nil {
+			return nil, fmt.Errorf("rotating logs on startup: %w", err)
+		}
+	}
+
+	return rotator, nil
+}
+
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }

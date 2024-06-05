@@ -1,6 +1,7 @@
 package nmcslog
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 )
@@ -40,6 +41,21 @@ func SetDebugLogger(l *slog.Logger) *slog.Logger {
 }
 
 // GetConfiguredLogger will return a logger that is configured according to the given configuration.
-func GetConfiguredLogger(logConfig *Config) {
-	logConfig.Validate()
+func GetConfiguredLogger(logConfig *Config) (logger *slog.Logger, err error) {
+	defer func() {
+		if err != nil {
+			err = fmt.Errorf("nmcslog: validate config [configure logger]: %w", err)
+		}
+	}()
+
+	if err = logConfig.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid logger configuration: %w", err)
+	}
+
+	logger, err = logConfig.GetHandlers()
+	if err != nil {
+		return nil, fmt.Errorf("get configured logger: %w", err)
+	}
+
+	return logger, nil
 }
